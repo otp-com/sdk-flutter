@@ -1,0 +1,21 @@
+.DS_Store
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+pubspec.lock
+
+# The example app's dependencies and build output. The app itself is committed.
+example/.dart_tool/
+example/.flutter-plugins
+example/.flutter-plugins-dependencies
+example/build/
+example/pubspec.lock
+example/ios/Pods/
+example/ios/.symlinks/
+example/ios/Flutter/Flutter.framework
+example/ios/Flutter/Flutter.podspec
+example/ios/Flutter/ephemeral/
+example/ios/Podfile.lock
+example/android/.gradle/
+example/android/local.properties

@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "sdk-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/otp-com/sdk-ios.git",
+      "state" : {
+        "revision" : "f00088598bf191624e02f2c374e62f8bece96fe4",
+        "version" : "0.2.0"
+      }
+    }
+  ],
+  "version" : 2
+}

@@ -1,0 +1,12 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+
+# The rest of the repository wraps around 110 columns. Dart's default 80 would make this package the
+# odd one out for no reason.
+formatter:
+  page_width: 100

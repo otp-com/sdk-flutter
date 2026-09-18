@@ -125,6 +125,8 @@ public final class OtpPlugin: NSObject, FlutterPlugin, OtpHostApi {
         message: error.message ?? Self.code(error.kind),
         details: Self.details(error)
       )
+    } catch {
+      throw PigeonError(code: "unexpected", message: error.localizedDescription, details: nil)
     }
   }
 

@@ -127,6 +127,13 @@ class OtpPlugin : FlutterPlugin, OtpHostApi {
             throw FlutterError("validationFailed", refusal.message, null)
         } catch (error: OtpException) {
             throw FlutterError(code(error.kind), error.message ?: code(error.kind), details(error))
+        } catch (cancellation: kotlinx.coroutines.CancellationException) {
+            // Rethrow unchanged: this is how a coroutine is cancelled, not a failure to report.
+            throw cancellation
+        } catch (error: Throwable) {
+            // The SDK names what it can. Everything it cannot is a wiring problem, not a kind this
+            // build has not heard of, which is what "unknown" means in this API.
+            throw FlutterError("unexpected", error.message ?: error.toString(), null)
         }
 
     /**

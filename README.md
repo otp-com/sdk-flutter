@@ -40,15 +40,22 @@ verification, which is why the server key exists and why it stays on your server
 flutter pub add otp_flutter
 ```
 
-Then raise the Android floor in `android/app/build.gradle.kts`:
+Then set the two Android SDK levels in `android/app/build.gradle.kts`:
 
 ```kotlin
 android {
+    compileSdk = 37
+
     defaultConfig {
         minSdk = 26
     }
 }
 ```
+
+Flutter's own defaults are lower on both, so the app will fail to build until they are raised. The
+reason for 26 is the one above: hardware-backed key attestation is only guaranteed from API 26. The
+reason for 37 is that the Android SDK this package wraps compiles against API 37, and Gradle refuses
+to build an app that compiles against less than a library it depends on.
 
 Nothing else to register: Flutter's own plugin resolution finds the native halves on both platforms.
 Swift Package Manager and CocoaPods both work on iOS, and neither needs a line added to your Podfile.

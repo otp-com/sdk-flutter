@@ -8,7 +8,7 @@ Pod::Spec.new do |s|
   s.summary      = pubspec['description']
   s.description  = pubspec['description']
   s.homepage     = 'https://otp.com'
-  s.license      = { type: 'Commercial', file: '../LICENSE' }
+  s.license      = { type: 'Apache-2.0', file: '../LICENSE' }
   s.authors      = { 'otp.com' => 'support@otp.com' }
   s.source       = { path: '.' }
 

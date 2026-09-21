@@ -1,0 +1,8 @@
+otp.com Flutter SDK
+Copyright 2026 otp.com
+
+This product includes software developed at otp.com (https://otp.com).
+
+This package is a bridge over the otp.com iOS and Android SDKs. Those are distributed as
+compiled binaries under otp.com's commercial licence and are not covered by the Apache
+License.

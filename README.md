@@ -236,6 +236,12 @@ flutter run
 
 Put your own publishable key in the field at the top and tap **configure** before anything else.
 
+## License
+
+This package is [Apache-2.0](./LICENSE), and the native SDKs it bridges are not. Those ship as
+compiled binaries under otp.com's commercial licence, which is why the boundary is worth stating:
+what you may fork and redistribute freely is the glue, not the SDK underneath.
+
 ## Support
 
 Docs and status: [otp.com](https://otp.com?utm_source=github-sdk-flutter). Anything else:

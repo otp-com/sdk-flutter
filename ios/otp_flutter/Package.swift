@@ -15,7 +15,7 @@ let package = Package(
   dependencies: [
     .package(name: "FlutterFramework", path: "../FlutterFramework"),
     // Package identity is derived from the URL's last path component, hence "sdk-ios" rather than "Otp".
-    .package(url: "https://github.com/otp-com/sdk-ios.git", from: "0.3.0"),
+    .package(url: "https://github.com/otp-com/sdk-ios.git", from: "0.3.1"),
   ],
   targets: [
     .target(

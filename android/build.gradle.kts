@@ -32,7 +32,7 @@ plugins {
 android {
     namespace = "com.otp.sdk.flutter"
 
-    // 37, not the Flutter template's default 36: com.otp:sdk-android:0.3.0
+    // 37, not the Flutter template's default 36: com.otp:sdk-android:0.3.1
     // libraries that require compiling against 37.
     compileSdk = 37
 
@@ -82,7 +82,7 @@ kotlin {
 }
 
 dependencies {
-    implementation("com.otp:sdk-android:0.3.0")
+    implementation("com.otp:sdk-android:0.3.1")
 
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     testImplementation("org.mockito:mockito-core:5.0.0")

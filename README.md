@@ -140,7 +140,8 @@ if (verification != null) {
 ```
 
 It resolves with null when there was nothing in flight, which includes a verification that expired
-while they were away and one they closed without answering.
+while they were away and one they closed without answering. If their WhatsApp message approved the
+verification while they were away, it resolves with the proof directly and shows no screen.
 
 ## Your own screen
 
@@ -153,7 +154,8 @@ final pending = await Otp.start('+14155552671');
 pending.codeLength;         // how many boxes to draw, and it is not always 6
 pending.expiresAt;          // count down from this
 pending.resendAvailableAt;  // null means it can never be resent, not "resend now"
-pending.handoffUrl;         // WhatsApp only: open this, the code follows
+pending.handoffUrl;         // WhatsApp only: open this
+pending.completion;         // code: the user enters one. inbound: their WhatsApp message is the answer
 
 final outcome = await Otp.submit(pending.id, entered);
 switch (outcome) {
@@ -166,7 +168,17 @@ switch (outcome) {
 }
 ```
 
-Everything a screen needs is on the answer, including both deadlines, so no part of this polls.
+When `completion` is `OtpCompletion.inbound` there is no code to collect. Open `handoffUrl` and wait
+instead:
+
+```dart
+final outcome = await Otp.awaitApproval(pending.id);   // same shape as submit
+```
+
+Everything a screen needs is on the answer, including both deadlines, so a `code` verification is
+never polled. An `inbound` one is, and `awaitApproval` is that loop: it reads the verification every
+few seconds until it is approved, expired or failed. Which WhatsApp mode your account runs is set on
+our side; read `completion` rather than assuming one.
 
 `codeLength` is worth reading rather than assuming: it is your account's setting and it is not always
 six.
@@ -179,6 +191,10 @@ if (inFlight != null) {
   final pending = await Otp.resume(inFlight.otpId);
 }
 ```
+
+An `inbound` verification that was approved while the app was away carries its proof in
+`pending.verification` on that first `resume`. The API issues it once, so take it from there rather
+than calling `resume` again.
 
 ## Device integrity
 

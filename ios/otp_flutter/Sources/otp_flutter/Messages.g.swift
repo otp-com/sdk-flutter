@@ -197,6 +197,10 @@ struct PendingOtpMessage: Hashable, CustomStringConvertible {
   var resendAvailableAt: String? = nil
   /// WhatsApp only: the link the user opens to be sent the code.
   var handoffUrl: String? = nil
+  /// `code`, `inbound`, or `unknown` for a completion this build cannot name.
+  var completion: String
+  /// Only on the first read of an inbound verification after its approval.
+  var verification: VerificationMessage? = nil
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -209,6 +213,8 @@ struct PendingOtpMessage: Hashable, CustomStringConvertible {
     let expiresAt = pigeonVar_list[5] as! String
     let resendAvailableAt: String? = nilOrValue(pigeonVar_list[6])
     let handoffUrl: String? = nilOrValue(pigeonVar_list[7])
+    let completion = pigeonVar_list[8] as! String
+    let verification: VerificationMessage? = nilOrValue(pigeonVar_list[9])
 
     return PendingOtpMessage(
       id: id,
@@ -218,7 +224,9 @@ struct PendingOtpMessage: Hashable, CustomStringConvertible {
       codeLength: codeLength,
       expiresAt: expiresAt,
       resendAvailableAt: resendAvailableAt,
-      handoffUrl: handoffUrl
+      handoffUrl: handoffUrl,
+      completion: completion,
+      verification: verification
     )
   }
   func toList() -> [Any?] {
@@ -231,13 +239,15 @@ struct PendingOtpMessage: Hashable, CustomStringConvertible {
       expiresAt,
       resendAvailableAt,
       handoffUrl,
+      completion,
+      verification,
     ]
   }
   static func == (lhs: PendingOtpMessage, rhs: PendingOtpMessage) -> Bool {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return MessagesPigeonInternal.deepEquals(lhs.id, rhs.id) && MessagesPigeonInternal.deepEquals(lhs.status, rhs.status) && MessagesPigeonInternal.deepEquals(lhs.channel, rhs.channel) && MessagesPigeonInternal.deepEquals(lhs.maskedRecipient, rhs.maskedRecipient) && MessagesPigeonInternal.deepEquals(lhs.codeLength, rhs.codeLength) && MessagesPigeonInternal.deepEquals(lhs.expiresAt, rhs.expiresAt) && MessagesPigeonInternal.deepEquals(lhs.resendAvailableAt, rhs.resendAvailableAt) && MessagesPigeonInternal.deepEquals(lhs.handoffUrl, rhs.handoffUrl)
+    return MessagesPigeonInternal.deepEquals(lhs.id, rhs.id) && MessagesPigeonInternal.deepEquals(lhs.status, rhs.status) && MessagesPigeonInternal.deepEquals(lhs.channel, rhs.channel) && MessagesPigeonInternal.deepEquals(lhs.maskedRecipient, rhs.maskedRecipient) && MessagesPigeonInternal.deepEquals(lhs.codeLength, rhs.codeLength) && MessagesPigeonInternal.deepEquals(lhs.expiresAt, rhs.expiresAt) && MessagesPigeonInternal.deepEquals(lhs.resendAvailableAt, rhs.resendAvailableAt) && MessagesPigeonInternal.deepEquals(lhs.handoffUrl, rhs.handoffUrl) && MessagesPigeonInternal.deepEquals(lhs.completion, rhs.completion) && MessagesPigeonInternal.deepEquals(lhs.verification, rhs.verification)
   }
 
   func hash(into hasher: inout Hasher) {
@@ -250,10 +260,12 @@ struct PendingOtpMessage: Hashable, CustomStringConvertible {
     MessagesPigeonInternal.deepHash(value: expiresAt, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: resendAvailableAt, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: handoffUrl, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: completion, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: verification, hasher: &hasher)
   }
 
   public var description: String {
-    return "PendingOtpMessage(id: \(String(describing: id)), status: \(String(describing: status)), channel: \(String(describing: channel)), maskedRecipient: \(String(describing: maskedRecipient)), codeLength: \(String(describing: codeLength)), expiresAt: \(String(describing: expiresAt)), resendAvailableAt: \(String(describing: resendAvailableAt)), handoffUrl: \(String(describing: handoffUrl)))"
+    return "PendingOtpMessage(id: \(String(describing: id)), status: \(String(describing: status)), channel: \(String(describing: channel)), maskedRecipient: \(String(describing: maskedRecipient)), codeLength: \(String(describing: codeLength)), expiresAt: \(String(describing: expiresAt)), resendAvailableAt: \(String(describing: resendAvailableAt)), handoffUrl: \(String(describing: handoffUrl)), completion: \(String(describing: completion)), verification: \(String(describing: verification)))"
   }
 }
 
@@ -461,6 +473,9 @@ protocol OtpHostApi {
   func resumeInterrupted() async throws -> VerificationMessage?
   func start(recipient: String, locale: String?) async throws -> PendingOtpMessage
   func submit(otpId: String, code: String) async throws -> CodeSubmissionMessage
+  /// Waits for an inbound verification to be approved by the message the user sent, polling the API
+  /// every few seconds. Resolves with the same shape as `submit`.
+  func awaitApproval(otpId: String) async throws -> CodeSubmissionMessage
   func resend(otpId: String, channel: String?) async throws -> PendingOtpMessage
   func resume(otpId: String) async throws -> PendingOtpMessage
   /// The verification this install left in flight, or null. Reads what the device kept and makes
@@ -588,6 +603,25 @@ class OtpHostApiSetup {
       }
     } else {
       submitChannel.setMessageHandler(nil)
+    }
+    /// Waits for an inbound verification to be approved by the message the user sent, polling the API
+    /// every few seconds. Resolves with the same shape as `submit`.
+    let awaitApprovalChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.otp_flutter.OtpHostApi.awaitApproval\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      awaitApprovalChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let otpIdArg = args[0] as! String
+        Task { @MainActor in
+          do {
+            let result = try await api.awaitApproval(otpId: otpIdArg)
+            reply(wrapResult(result))
+          } catch {
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      awaitApprovalChannel.setMessageHandler(nil)
     }
     let resendChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.otp_flutter.OtpHostApi.resend\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

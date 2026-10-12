@@ -210,7 +210,11 @@ data class PendingOtpMessage (
   val expiresAt: String,
   val resendAvailableAt: String? = null,
   /** WhatsApp only: the link the user opens to be sent the code. */
-  val handoffUrl: String? = null
+  val handoffUrl: String? = null,
+  /** `code`, `inbound`, or `unknown` for a completion this build cannot name. */
+  val completion: String,
+  /** Only on the first read of an inbound verification after its approval. */
+  val verification: VerificationMessage? = null
 )
  {
   companion object {
@@ -223,7 +227,9 @@ data class PendingOtpMessage (
       val expiresAt = pigeonVar_list[5] as String
       val resendAvailableAt = pigeonVar_list[6] as String?
       val handoffUrl = pigeonVar_list[7] as String?
-      return PendingOtpMessage(id, status, channel, maskedRecipient, codeLength, expiresAt, resendAvailableAt, handoffUrl)
+      val completion = pigeonVar_list[8] as String
+      val verification = pigeonVar_list[9] as VerificationMessage?
+      return PendingOtpMessage(id, status, channel, maskedRecipient, codeLength, expiresAt, resendAvailableAt, handoffUrl, completion, verification)
     }
   }
   fun toList(): List<Any?> {
@@ -236,6 +242,8 @@ data class PendingOtpMessage (
       expiresAt,
       resendAvailableAt,
       handoffUrl,
+      completion,
+      verification,
     )
   }
   override fun equals(other: Any?): Boolean {
@@ -246,7 +254,7 @@ data class PendingOtpMessage (
       return true
     }
     val other = other as PendingOtpMessage
-    return MessagesPigeonUtils.deepEquals(this.id, other.id) && MessagesPigeonUtils.deepEquals(this.status, other.status) && MessagesPigeonUtils.deepEquals(this.channel, other.channel) && MessagesPigeonUtils.deepEquals(this.maskedRecipient, other.maskedRecipient) && MessagesPigeonUtils.deepEquals(this.codeLength, other.codeLength) && MessagesPigeonUtils.deepEquals(this.expiresAt, other.expiresAt) && MessagesPigeonUtils.deepEquals(this.resendAvailableAt, other.resendAvailableAt) && MessagesPigeonUtils.deepEquals(this.handoffUrl, other.handoffUrl)
+    return MessagesPigeonUtils.deepEquals(this.id, other.id) && MessagesPigeonUtils.deepEquals(this.status, other.status) && MessagesPigeonUtils.deepEquals(this.channel, other.channel) && MessagesPigeonUtils.deepEquals(this.maskedRecipient, other.maskedRecipient) && MessagesPigeonUtils.deepEquals(this.codeLength, other.codeLength) && MessagesPigeonUtils.deepEquals(this.expiresAt, other.expiresAt) && MessagesPigeonUtils.deepEquals(this.resendAvailableAt, other.resendAvailableAt) && MessagesPigeonUtils.deepEquals(this.handoffUrl, other.handoffUrl) && MessagesPigeonUtils.deepEquals(this.completion, other.completion) && MessagesPigeonUtils.deepEquals(this.verification, other.verification)
   }
 
   override fun hashCode(): Int {
@@ -259,10 +267,12 @@ data class PendingOtpMessage (
     result = 31 * result + MessagesPigeonUtils.deepHash(this.expiresAt)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.resendAvailableAt)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.handoffUrl)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.completion)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.verification)
     return result
   }
   override fun toString(): String {
-    return "PendingOtpMessage(id=$id, status=$status, channel=$channel, maskedRecipient=$maskedRecipient, codeLength=$codeLength, expiresAt=$expiresAt, resendAvailableAt=$resendAvailableAt, handoffUrl=$handoffUrl)"
+    return "PendingOtpMessage(id=$id, status=$status, channel=$channel, maskedRecipient=$maskedRecipient, codeLength=$codeLength, expiresAt=$expiresAt, resendAvailableAt=$resendAvailableAt, handoffUrl=$handoffUrl, completion=$completion, verification=$verification)"
   }
 }
 
@@ -469,6 +479,11 @@ interface OtpHostApi {
   suspend fun resumeInterrupted(): VerificationMessage?
   suspend fun start(recipient: String, locale: String?): PendingOtpMessage
   suspend fun submit(otpId: String, code: String): CodeSubmissionMessage
+  /**
+   * Waits for an inbound verification to be approved by the message the user sent, polling the API
+   * every few seconds. Resolves with the same shape as `submit`.
+   */
+  suspend fun awaitApproval(otpId: String): CodeSubmissionMessage
   suspend fun resend(otpId: String, channel: String?): PendingOtpMessage
   suspend fun resume(otpId: String): PendingOtpMessage
   /**
@@ -598,6 +613,25 @@ interface OtpHostApi {
             CoroutineScope(Dispatchers.Main).launch {
               val wrapped: List<Any?> = try {
                 listOf(api.submit(otpIdArg, codeArg))
+              } catch (exception: Throwable) {
+                MessagesPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.otp_flutter.OtpHostApi.awaitApproval$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val otpIdArg = args[0] as String
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.awaitApproval(otpIdArg))
               } catch (exception: Throwable) {
                 MessagesPigeonUtils.wrapError(exception)
               }

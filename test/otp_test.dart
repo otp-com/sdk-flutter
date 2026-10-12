@@ -40,6 +40,7 @@ void main() {
       'resumeInterrupted',
       'start',
       'submit',
+      'awaitApproval',
       'resend',
       'resume',
       'interrupted',
@@ -58,6 +59,8 @@ void main() {
     String status = 'pending',
     String? channel,
     String? resendAvailableAt,
+    String completion = 'code',
+    VerificationMessage? verification,
   }) => PendingOtpMessage(
     id: 'otp_1',
     status: status,
@@ -67,6 +70,8 @@ void main() {
     expiresAt: '2026-09-18T12:00:00Z',
     resendAvailableAt: resendAvailableAt,
     handoffUrl: null,
+    completion: completion,
+    verification: verification,
   );
 
   test('an unknown channel string arrives as OtpChannel.unknown', () async {
@@ -79,6 +84,29 @@ void main() {
     mockMethod('start', (_) => pendingMessage(status: 'stuck'));
     final pending = await Otp.start('+15555550123');
     expect(pending.status, OtpStatus.unknown);
+  });
+
+  test('an unknown completion string arrives as OtpCompletion.unknown', () async {
+    mockMethod('start', (_) => pendingMessage(completion: 'telepathy'));
+    final pending = await Otp.start('+15555550123');
+    expect(pending.completion, OtpCompletion.unknown);
+  });
+
+  test('a verification on the pending message maps through to PendingOtp.verification', () async {
+    mockMethod(
+      'resume',
+      (_) => pendingMessage(
+        completion: 'inbound',
+        verification: VerificationMessage(
+          otpId: 'otp_1',
+          token: 'tok_1',
+          tokenExpiresAt: '2026-09-18T12:10:00Z',
+        ),
+      ),
+    );
+    final pending = await Otp.resume('otp_1');
+    expect(pending.completion, OtpCompletion.inbound);
+    expect(pending.verification?.token, 'tok_1');
   });
 
   test('expiresAt and resendAvailableAt parse to the right DateTime', () async {

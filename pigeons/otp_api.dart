@@ -35,6 +35,8 @@ class PendingOtpMessage {
     required this.expiresAt,
     this.resendAvailableAt,
     this.handoffUrl,
+    required this.completion,
+    this.verification,
   });
 
   final String id;
@@ -50,8 +52,16 @@ class PendingOtpMessage {
   final String expiresAt;
   final String? resendAvailableAt;
 
-  /// WhatsApp only: the link the user opens to be sent the code.
+  /// WhatsApp only: the link the user opens to be sent the code, or to approve the verification by
+  /// themselves when `completion` is `inbound`. Null on every other channel, and null on WhatsApp
+  /// when the code was delivered directly.
   final String? handoffUrl;
+
+  /// `code`, `inbound`, or `unknown` for a completion this build cannot name.
+  final String completion;
+
+  /// Only on the first read of an inbound verification after its approval.
+  final VerificationMessage? verification;
 }
 
 class VerificationMessage {
@@ -83,7 +93,7 @@ class CodeSubmissionMessage {
   final String? reason;
 }
 
-// Status, channel and rejection reason cross as strings rather than as Pigeon enums. Routing and
+// Status, channel, completion and rejection reason cross as strings rather than as Pigeon enums. Routing and
 // error handling gain new values over time and an app already on a phone cannot be updated to
 // match, so a value this build was never told about must not fail decoding. This is the same
 // reason the generated native transport carries `enumUnknownDefaultCase`. Mapping to a Dart enum,
@@ -121,6 +131,11 @@ abstract class OtpHostApi {
 
   @async
   CodeSubmissionMessage submit(String otpId, String code);
+
+  /// Waits for an inbound verification to be approved by the message the user sent, polling the API
+  /// every few seconds. Resolves with the same shape as `submit`.
+  @async
+  CodeSubmissionMessage awaitApproval(String otpId);
 
   @async
   PendingOtpMessage resend(String otpId, String? channel);

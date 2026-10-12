@@ -5,6 +5,7 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import com.otp.sdk.CodeSubmission
 import com.otp.sdk.OtpChannel
 import com.otp.sdk.OtpClient
+import com.otp.sdk.OtpCompletion
 import com.otp.sdk.OtpException
 import com.otp.sdk.OtpSession
 import com.otp.sdk.OtpStatus
@@ -84,6 +85,14 @@ class OtpPlugin : FlutterPlugin, OtpHostApi {
         answer {
             val id = uuid(otpId)
             val outcome = session(id).submit(code)
+            if (outcome is CodeSubmission.Verified) sessions.remove(id)
+            map(outcome)
+        }
+
+    override suspend fun awaitApproval(otpId: String): CodeSubmissionMessage =
+        answer {
+            val id = uuid(otpId)
+            val outcome = session(id).awaitApproval()
             if (outcome is CodeSubmission.Verified) sessions.remove(id)
             map(outcome)
         }
@@ -193,6 +202,8 @@ class OtpPlugin : FlutterPlugin, OtpHostApi {
             expiresAt = iso(pending.expiresAt),
             resendAvailableAt = pending.resendAvailableAt?.let(::iso),
             handoffUrl = pending.handoffUrl,
+            completion = string(pending.completion),
+            verification = pending.verification?.let(::map),
         )
 
         fun map(verification: Verification): VerificationMessage = VerificationMessage(
@@ -222,6 +233,12 @@ class OtpPlugin : FlutterPlugin, OtpHostApi {
             OtpStatus.FAILED -> "failed"
             OtpStatus.EXPIRED -> "expired"
             OtpStatus.UNKNOWN -> "unknown"
+        }
+
+        fun string(completion: OtpCompletion): String = when (completion) {
+            OtpCompletion.CODE -> "code"
+            OtpCompletion.INBOUND -> "inbound"
+            OtpCompletion.UNKNOWN -> "unknown"
         }
 
         fun string(channel: OtpChannel): String = when (channel) {

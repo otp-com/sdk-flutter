@@ -75,6 +75,18 @@ public final class OtpPlugin: NSObject, FlutterPlugin, OtpHostApi {
     }
   }
 
+  func awaitApproval(otpId: String) async throws -> CodeSubmissionMessage {
+    try await answer {
+      let id = try Self.uuid(otpId)
+      let session = try await sessions.session(for: id)
+      let outcome = try await session.awaitApproval()
+      if case .verified = outcome {
+        await sessions.forget(id)
+      }
+      return Self.message(outcome)
+    }
+  }
+
   func resend(otpId: String, channel: String?) async throws -> PendingOtpMessage {
     try await answer {
       let id = try Self.uuid(otpId)
@@ -175,7 +187,9 @@ public final class OtpPlugin: NSObject, FlutterPlugin, OtpHostApi {
       codeLength: Int64(pending.codeLength),
       expiresAt: iso(pending.expiresAt),
       resendAvailableAt: pending.resendAvailableAt.map(iso),
-      handoffUrl: pending.handoffURL?.absoluteString
+      handoffUrl: pending.handoffURL?.absoluteString,
+      completion: string(pending.completion),
+      verification: pending.verification.map(message)
     )
   }
 
@@ -217,6 +231,15 @@ public final class OtpPlugin: NSObject, FlutterPlugin, OtpHostApi {
     case .approved: "approved"
     case .failed: "failed"
     case .expired: "expired"
+    case .unknown: "unknown"
+    @unknown default: "unknown"
+    }
+  }
+
+  private static func string(_ completion: OtpCompletion) -> String {
+    switch completion {
+    case .code: "code"
+    case .inbound: "inbound"
     case .unknown: "unknown"
     @unknown default: "unknown"
     }

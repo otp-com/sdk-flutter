@@ -1,3 +1,16 @@
+## 0.4.0
+
+Adds the inbound WhatsApp mode, where the user's own WhatsApp message approves the verification and
+there is no code to enter. `PendingOtp` gains `completion` (`code` or `inbound`) and `verification`,
+and `Otp.awaitApproval(otpId)` waits for an inbound verification the way `submit` answers a code. The
+drop-in screen shows a waiting state instead of the code field on such a verification, and
+`resumeInterrupted` returns the proof directly when the approval happened while the app was away.
+
+Which WhatsApp mode an account runs is set on our side; read `completion` rather than assuming one.
+The two new `PendingOtp` fields default to `code` and null, so a fake built in a test keeps compiling.
+
+Both native SDKs carry the same change, so all four platforms move to 0.4.0 together.
+
 ## 0.3.1
 
 Fixes the Android screens ignoring the window insets. The close cross sat against the status bar,

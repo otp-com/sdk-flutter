@@ -21,6 +21,14 @@ enum OtpChannel { sms, whatsapp, email, telegram, unknown }
 /// new case.
 enum OtpStatus { pending, approved, failed, expired, unknown }
 
+/// How a verification is completed. [code] is the user entering a code, which the app submits.
+/// [inbound] is WhatsApp only: the message the user sends from [PendingOtp.handoffUrl] approves it
+/// by itself, there is no code, and the app calls [Otp.awaitApproval].
+///
+/// See [OtpChannel] for why an unrecognised value arrives as [OtpCompletion.unknown] rather than as
+/// a new case.
+enum OtpCompletion { code, inbound, unknown }
+
 /// Why a submitted code was rejected.
 enum RejectionReason { incorrectCode, expired, noAttemptsLeft, unknown }
 
@@ -55,7 +63,8 @@ enum OtpErrorKind {
 }
 
 /// A verification that has been started and not yet answered. Both deadlines are here, so
-/// countdowns run on the device: there is nothing to poll.
+/// countdowns run on the device: only an inbound verification is polled, and [Otp.awaitApproval]
+/// does that.
 final class PendingOtp {
   PendingOtp({
     required this.id,
@@ -66,6 +75,8 @@ final class PendingOtp {
     required this.expiresAt,
     required this.resendAvailableAt,
     required this.handoffUrl,
+    this.completion = OtpCompletion.code,
+    this.verification,
   });
 
   final String id;
@@ -85,8 +96,16 @@ final class PendingOtp {
   /// Null when this verification can no longer be resent at all.
   final DateTime? resendAvailableAt;
 
-  /// WhatsApp only: the link the user opens to be sent the code.
+  /// WhatsApp only: the link the user opens to be sent the code, or to approve the verification by
+  /// themselves when [completion] is [OtpCompletion.inbound]. Null on every other channel, and null
+  /// on WhatsApp when the code was delivered directly.
   final String? handoffUrl;
+
+  final OtpCompletion completion;
+
+  /// Only on the first read of an inbound verification after its approval, because the API issues
+  /// that token once.
+  final Verification? verification;
 }
 
 /// Proof that a verification succeeded. Send [token] to your own backend, which exchanges it with
@@ -168,6 +187,8 @@ const List<OtpStatus> _knownStatuses = [
   OtpStatus.expired,
 ];
 
+const List<OtpCompletion> _knownCompletions = [OtpCompletion.code, OtpCompletion.inbound];
+
 const List<RejectionReason> _knownRejectionReasons = [
   RejectionReason.incorrectCode,
   RejectionReason.expired,
@@ -207,6 +228,13 @@ OtpStatus _toStatus(String value) {
   return OtpStatus.unknown;
 }
 
+OtpCompletion _toCompletion(String value) {
+  for (final completion in _knownCompletions) {
+    if (completion.name == value) return completion;
+  }
+  return OtpCompletion.unknown;
+}
+
 RejectionReason _toRejectionReason(String? value) {
   if (value == null) return RejectionReason.unknown;
   for (final reason in _knownRejectionReasons) {
@@ -226,6 +254,8 @@ PendingOtp _toPendingOtp(PendingOtpMessage message) => PendingOtp(
       ? null
       : DateTime.parse(message.resendAvailableAt!).toUtc(),
   handoffUrl: message.handoffUrl,
+  completion: _toCompletion(message.completion),
+  verification: message.verification == null ? null : _toVerification(message.verification!),
 );
 
 Verification _toVerification(VerificationMessage message) => Verification(
@@ -331,13 +361,22 @@ abstract final class Otp {
   /// Starts a verification and has the code delivered, for an app drawing its own screens.
   ///
   /// Everything the screen needs is on the answer, including both deadlines, so countdowns run on
-  /// the device and there is nothing to poll.
+  /// the device. Only an inbound verification is polled, and [awaitApproval] does that.
   static Future<PendingOtp> start(String recipient, {String? locale}) async =>
       _toPendingOtp(await _calling(() => _host.start(recipient, locale)));
 
   /// Submits the code the user entered.
   static Future<CodeSubmission> submit(String otpId, String code) async =>
       _toCodeSubmission(await _calling(() => _host.submit(otpId, code)));
+
+  /// Waits for an inbound verification to be approved by the message the user sent, polling the API
+  /// every few seconds. Resolves with the same shape as [submit]: verified with the token, or
+  /// rejected with a reason, [RejectionReason.unknown] when the once-only token was already claimed.
+  ///
+  /// Call it only when [PendingOtp.completion] is [OtpCompletion.inbound]; it fails with
+  /// [OtpErrorKind.validationFailed] otherwise.
+  static Future<CodeSubmission> awaitApproval(String otpId) async =>
+      _toCodeSubmission(await _calling(() => _host.awaitApproval(otpId)));
 
   /// Sends the code again, moving to the next channel in the app's routing order.
   ///
@@ -356,7 +395,8 @@ abstract final class Otp {
   /// Picks a verification back up after the app was killed while the user was away receiving the
   /// code. Its deadlines come back with it, so a screen can rebuild its countdowns.
   ///
-  /// This is not a poll. Both deadlines are on [PendingOtp] and run on the device.
+  /// This is not a poll. Both deadlines are on [PendingOtp] and run on the device; only an inbound
+  /// verification is polled, and [awaitApproval] does that.
   static Future<PendingOtp> resume(String otpId) async =>
       _toPendingOtp(await _calling(() => _host.resume(otpId)));
 

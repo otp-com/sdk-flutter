@@ -105,6 +105,8 @@ class PendingOtpMessage {
     required this.expiresAt,
     this.resendAvailableAt,
     this.handoffUrl,
+    required this.completion,
+    this.verification,
   });
 
   String id;
@@ -126,6 +128,12 @@ class PendingOtpMessage {
   /// WhatsApp only: the link the user opens to be sent the code.
   String? handoffUrl;
 
+  /// `code`, `inbound`, or `unknown` for a completion this build cannot name.
+  String completion;
+
+  /// Only on the first read of an inbound verification after its approval.
+  VerificationMessage? verification;
+
   List<Object?> _toList() {
     return <Object?>[
       id,
@@ -136,6 +144,8 @@ class PendingOtpMessage {
       expiresAt,
       resendAvailableAt,
       handoffUrl,
+      completion,
+      verification,
     ];
   }
 
@@ -154,6 +164,8 @@ class PendingOtpMessage {
       expiresAt: result[5]! as String,
       resendAvailableAt: result[6] as String?,
       handoffUrl: result[7] as String?,
+      completion: result[8]! as String,
+      verification: result[9] as VerificationMessage?,
     );
   }
 
@@ -173,7 +185,9 @@ class PendingOtpMessage {
         _deepEquals(codeLength, other.codeLength) &&
         _deepEquals(expiresAt, other.expiresAt) &&
         _deepEquals(resendAvailableAt, other.resendAvailableAt) &&
-        _deepEquals(handoffUrl, other.handoffUrl);
+        _deepEquals(handoffUrl, other.handoffUrl) &&
+        _deepEquals(completion, other.completion) &&
+        _deepEquals(verification, other.verification);
   }
 
   @override
@@ -182,7 +196,7 @@ class PendingOtpMessage {
 
   @override
   String toString() {
-    return 'PendingOtpMessage(id: $id, status: $status, channel: $channel, maskedRecipient: $maskedRecipient, codeLength: $codeLength, expiresAt: $expiresAt, resendAvailableAt: $resendAvailableAt, handoffUrl: $handoffUrl)';
+    return 'PendingOtpMessage(id: $id, status: $status, channel: $channel, maskedRecipient: $maskedRecipient, codeLength: $codeLength, expiresAt: $expiresAt, resendAvailableAt: $resendAvailableAt, handoffUrl: $handoffUrl, completion: $completion, verification: $verification)';
   }
 }
 
@@ -509,6 +523,27 @@ class OtpHostApi {
       binaryMessenger: pigeonVar_binaryMessenger,
     );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[otpId, code]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as CodeSubmissionMessage;
+  }
+
+  /// Waits for an inbound verification to be approved by the message the user sent, polling the API
+  /// every few seconds. Resolves with the same shape as `submit`.
+  Future<CodeSubmissionMessage> awaitApproval(String otpId) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.otp_flutter.OtpHostApi.awaitApproval$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[otpId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(

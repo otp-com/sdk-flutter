@@ -1,3 +1,13 @@
+## 0.4.1
+
+Device registration now repairs itself. An install whose stored device key the API no longer
+accepted had every send refused with a 403 on a live publishable key until its app data was
+cleared. This happened after an Android backup restored onto a new phone, an Android or iOS
+reinstall, an iOS restore, or a key registered under another app. The SDK now drops that key,
+registers a fresh one and repeats the call, at most once per app launch.
+
+No API change. Both native SDKs carry the fix, so all four platforms move to 0.4.1 together.
+
 ## 0.4.0
 
 Adds the inbound WhatsApp mode, where the user's own WhatsApp message approves the verification and
